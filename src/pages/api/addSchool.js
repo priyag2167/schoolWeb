@@ -1,7 +1,6 @@
 import formidable from "formidable";
 import fs from "fs";
 import path from "path";
-import { put } from "@vercel/blob";
 import { connectDB } from "@/libs/db";
 
 export const config = {
@@ -12,6 +11,9 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ success: false, message: "Method Not Allowed" });
   }
+
+  const uploadDir = path.join(process.cwd(), "public", "schoolImages");
+  await fs.promises.mkdir(uploadDir, { recursive: true });
 
   const form = formidable({
     multiples: false,
@@ -40,16 +42,9 @@ export default async function handler(req, res) {
     const tempPath = file.filepath || file.path;
     const ext = (path.extname(file.originalFilename || "") || ".png").toLowerCase();
     const finalName = `school-${Date.now()}${ext}`;
-
-    // Upload to Vercel Blob (public)
-    const blob = await put(`schoolImages/${finalName}`,
-      fs.createReadStream(tempPath),
-      {
-        access: "public",
-        contentType: file.mimetype || "application/octet-stream",
-      }
-    );
-    const imageUrl = blob.url;
+    const finalPath = path.join(uploadDir, finalName);
+    await fs.promises.copyFile(tempPath, finalPath);
+    const imageUrl = `/schoolImages/${finalName}`;
 
     const db = await connectDB();
     try {
