@@ -1,6 +1,7 @@
 import formidable from "formidable";
 import fs from "fs";
 import path from "path";
+import { put } from "@vercel/blob";
 import { connectDB } from "@/libs/db";
 
 export const config = {
@@ -12,8 +13,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: "Method Not Allowed" });
   }
 
+  const isVercel = Boolean(process.env.VERCEL);
   const uploadDir = path.join(process.cwd(), "public", "schoolImages");
-  await fs.promises.mkdir(uploadDir, { recursive: true });
+  if (!isVercel) {
+    await fs.promises.mkdir(uploadDir, { recursive: true });
+  }
 
   const form = formidable({
     multiples: false,
@@ -42,9 +46,21 @@ export default async function handler(req, res) {
     const tempPath = file.filepath || file.path;
     const ext = (path.extname(file.originalFilename || "") || ".png").toLowerCase();
     const finalName = `school-${Date.now()}${ext}`;
-    const finalPath = path.join(uploadDir, finalName);
-    await fs.promises.copyFile(tempPath, finalPath);
-    const imageUrl = `/schoolImages/${finalName}`;
+
+    let imageUrl = "";
+    if (isVercel) {
+      // On Vercel, the filesystem is read-only. Upload to Vercel Blob instead.
+      const fileBuffer = await fs.promises.readFile(tempPath);
+      const { url } = await put(`schoolImages/${finalName}`, fileBuffer, {
+        access: "public",
+        contentType: file.mimetype || undefined,
+      });
+      imageUrl = url; // absolute URL to the blob
+    } else {
+      const finalPath = path.join(uploadDir, finalName);
+      await fs.promises.copyFile(tempPath, finalPath);
+      imageUrl = `/schoolImages/${finalName}`; // served from Next.js public folder in dev
+    }
 
     const db = await connectDB();
     try {
