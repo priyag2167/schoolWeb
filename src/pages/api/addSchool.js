@@ -1,7 +1,6 @@
 import formidable from "formidable";
 import fs from "fs";
 import path from "path";
-import { put } from "@vercel/blob";
 import { connectDB } from "@/libs/db";
 
 export const config = {
@@ -13,9 +12,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: "Method Not Allowed" });
   }
 
-  // Local dev fallback directory (Vercel prod FS is read-only, so we use Blob there)
   const uploadDir = path.join(process.cwd(), "public", "schoolImages");
-  try { await fs.promises.mkdir(uploadDir, { recursive: true }); } catch (_) {}
+  await fs.promises.mkdir(uploadDir, { recursive: true });
 
   const form = formidable({
     multiples: false,
@@ -44,29 +42,9 @@ export default async function handler(req, res) {
     const tempPath = file.filepath || file.path;
     const ext = (path.extname(file.originalFilename || "") || ".png").toLowerCase();
     const finalName = `school-${Date.now()}${ext}`;
-
-    // Default to Vercel Blob (works on Vercel without a token). In local dev, fallback to FS.
-    let imageUrl;
-    try {
-      const contentType = file.mimetype || "application/octet-stream";
-      const stream = fs.createReadStream(tempPath);
-      const { url } = await put(finalName, stream, {
-        access: "public",
-        // token is optional on Vercel; used only locally if provided
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-        contentType,
-      });
-      imageUrl = url;
-    } catch (blobErr) {
-      // Fallback to local FS only when not in production
-      if (process.env.NODE_ENV !== "production") {
-        const finalPath = path.join(uploadDir, finalName);
-        await fs.promises.copyFile(tempPath, finalPath);
-        imageUrl = `/schoolImages/${finalName}`;
-      } else {
-        throw blobErr;
-      }
-    }
+    const finalPath = path.join(uploadDir, finalName);
+    await fs.promises.copyFile(tempPath, finalPath);
+    const imageUrl = `/schoolImages/${finalName}`;
 
     const db = await connectDB();
     try {
