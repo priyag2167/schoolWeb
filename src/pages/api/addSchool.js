@@ -45,22 +45,27 @@ export default async function handler(req, res) {
     const ext = (path.extname(file.originalFilename || "") || ".png").toLowerCase();
     const finalName = `school-${Date.now()}${ext}`;
 
-    // Prefer Vercel Blob in production (or whenever token is set). Fallback to local FS in dev.
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    // Default to Vercel Blob (works on Vercel without a token). In local dev, fallback to FS.
     let imageUrl;
-    if (blobToken) {
+    try {
       const contentType = file.mimetype || "application/octet-stream";
       const stream = fs.createReadStream(tempPath);
       const { url } = await put(finalName, stream, {
         access: "public",
-        token: blobToken,
+        // token is optional on Vercel; used only locally if provided
+        token: process.env.BLOB_READ_WRITE_TOKEN,
         contentType,
       });
       imageUrl = url;
-    } else {
-      const finalPath = path.join(uploadDir, finalName);
-      await fs.promises.copyFile(tempPath, finalPath);
-      imageUrl = `/schoolImages/${finalName}`;
+    } catch (blobErr) {
+      // Fallback to local FS only when not in production
+      if (process.env.NODE_ENV !== "production") {
+        const finalPath = path.join(uploadDir, finalName);
+        await fs.promises.copyFile(tempPath, finalPath);
+        imageUrl = `/schoolImages/${finalName}`;
+      } else {
+        throw blobErr;
+      }
     }
 
     const db = await connectDB();
