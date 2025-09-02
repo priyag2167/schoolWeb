@@ -54,7 +54,7 @@ export default function ShowSchoolsPage() {
       </div>
 
       {loading && <div className="state">Loading schools…</div>}
-      {error && !loading && <div className="state error">{error}</div>}
+      {error && !loading && <div className="state error">{error.message}</div>}
 
       {!loading && !error && (
         (schools.length > 0) ? (
