@@ -53,6 +53,7 @@ export default async function handler(req, res) {
       const fileBuffer = await fs.promises.readFile(tempPath);
       const { url } = await put(`schoolImages/${finalName}`, fileBuffer, {
         access: "public",
+        token: process.env.BLOB_READ_WRITE_TOKEN,
         contentType: file.mimetype || undefined,
       });
       imageUrl = url; // absolute URL to the blob
