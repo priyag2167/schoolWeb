@@ -13,9 +13,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: "Method Not Allowed" });
   }
 
-  const isVercel = Boolean(process.env.VERCEL);
+  const useBlob = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
   const uploadDir = path.join(process.cwd(), "public", "schoolImages");
-  if (!isVercel) {
+  if (!useBlob) {
     await fs.promises.mkdir(uploadDir, { recursive: true });
   }
 
@@ -48,8 +48,8 @@ export default async function handler(req, res) {
     const finalName = `school-${Date.now()}${ext}`;
 
     let imageUrl = "";
-    if (isVercel) {
-      // On Vercel, the filesystem is read-only. Upload to Vercel Blob instead.
+    if (useBlob) {
+      // Use Vercel Blob when a token is configured (works on Vercel and locally)
       const fileBuffer = await fs.promises.readFile(tempPath);
       const { url } = await put(`schoolImages/${finalName}`, fileBuffer, {
         access: "public",
