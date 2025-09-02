@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const db = await connectDB();
   try {
     const [rows] = await db.execute(
-      "SELECT id, name, address, city, state, contact, image, email_id FROM schools ORDER BY id DESC"
+      "SELECT * FROM schools ORDER BY id DESC"
     );
     return res.status(200).json({ success: true, data: rows });
   } catch (error) {
