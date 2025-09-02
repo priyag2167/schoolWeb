@@ -1,6 +1,7 @@
 import formidable from "formidable";
 import fs from "fs";
 import path from "path";
+import { put } from "@vercel/blob";
 import { connectDB } from "@/libs/db";
 
 export const config = {
@@ -12,8 +13,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: "Method Not Allowed" });
   }
 
+  // Local dev fallback directory (Vercel prod FS is read-only, so we use Blob there)
   const uploadDir = path.join(process.cwd(), "public", "schoolImages");
-  await fs.promises.mkdir(uploadDir, { recursive: true });
+  try { await fs.promises.mkdir(uploadDir, { recursive: true }); } catch (_) {}
 
   const form = formidable({
     multiples: false,
@@ -42,9 +44,24 @@ export default async function handler(req, res) {
     const tempPath = file.filepath || file.path;
     const ext = (path.extname(file.originalFilename || "") || ".png").toLowerCase();
     const finalName = `school-${Date.now()}${ext}`;
-    const finalPath = path.join(uploadDir, finalName);
-    await fs.promises.copyFile(tempPath, finalPath);
-    const imageUrl = `/schoolImages/${finalName}`;
+
+    // Prefer Vercel Blob in production (or whenever token is set). Fallback to local FS in dev.
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    let imageUrl;
+    if (blobToken) {
+      const contentType = file.mimetype || "application/octet-stream";
+      const stream = fs.createReadStream(tempPath);
+      const { url } = await put(finalName, stream, {
+        access: "public",
+        token: blobToken,
+        contentType,
+      });
+      imageUrl = url;
+    } else {
+      const finalPath = path.join(uploadDir, finalName);
+      await fs.promises.copyFile(tempPath, finalPath);
+      imageUrl = `/schoolImages/${finalName}`;
+    }
 
     const db = await connectDB();
     try {
